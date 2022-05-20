@@ -1,24 +1,27 @@
+use crate::*;
 use bitflags::bitflags;
-use hashbrown::HashMap;
 
 #[derive(Default)]
 pub struct Namespace {
-  name: String,
-  children: Vec<Self>,
-  funs: Vec<Function>,
-  vars: Vec<Type>,
+  pub name: String,
+  pub open: bool,
+  pub parent: Rc<RefCell<Self>>,
+  pub children: HashMap<String, Rc<RefCell<Self>>>,
+  pub funs: Vec<Rc<RefCell<Function>>>,
+  pub vars: Vec<Rc<RefCell<Type>>>,
 }
 
+impl Namespace {}
+
 pub struct Function {
-  pos_params: Vec<Param>,
-  key_param: HashMap<String, Param>,
-  params: Vec<Param>,
-  returns: Type,
+  pub pos_params: Vec<Param>,
+  pub key_param: HashMap<String, Param>,
+  pub returns: Type,
 }
 
 pub struct Param {
-  t: Type,
-  default: Option<Value>,
+  pub t: Type,
+  pub default: Option<Value>,
 }
 
 pub struct Value(Type);
