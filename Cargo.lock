@@ -64,7 +64,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7b10983b38c53aebdf33f542c6275b0f58a238129d00c4ae0e6fb59738d783ca"
 
 [[package]]
-name = "tolkein"
+name = "tolkien"
 version = "0.1.0"
 dependencies = [
  "anyhow",

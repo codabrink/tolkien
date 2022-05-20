@@ -11,5 +11,7 @@ use reader::*;
 use std::path::Path;
 
 fn main() {
-  tokenize::tokenize(Path::new("assets/test.rb"));
+  if let Err(e) = tokenize::tokenize(Path::new("assets/test.rb")) {
+    println!("Error: {}", e);
+  }
 }
