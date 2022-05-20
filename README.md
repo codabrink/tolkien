@@ -1,0 +1,11 @@
+- scope
+  - is handled by the token tree
+- # Types
+  - Modules
+  - Classes
+  - Functions
+  - Variables
+  - Blocks
+
+- # External types
+  - Ruby core definitions
