@@ -1,9 +1,7 @@
 class Borculo end
 
 class Borculo::Benz
-  def hello_there(frenz:)
-    puts "Nice to meet you there, #{}"
-  end
+  def hello_there(frenz: nil, nice) puts "Nice to meet you there, #{frenz}" end
 end
 
 

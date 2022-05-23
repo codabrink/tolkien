@@ -9,17 +9,18 @@ pub type Cursor = Rc<RefCell<Scope>>;
 pub struct Scope {
   pub name: Option<String>,
   pub scope_type: ScopeType,
-  parent: Option<Rc<RefCell<Self>>>,
+  pub parent: Option<Rc<RefCell<Self>>>,
   pub children: HashMap<String, Cursor>,
-  pub funs: Vec<HashMap<String, Rc<RefCell<Function>>>>,
-  pub vars: Vec<HashMap<String, Rc<RefCell<Primitive>>>>,
+  pub funs: HashMap<String, Rc<RefCell<Function>>>,
+  pub vars: HashMap<String, Rc<RefCell<Primitive>>>,
 }
 
 impl Debug for Scope {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    f.debug_struct("scope")
-      // .field("name", &self.name)
+    f.debug_struct("Scope")
+      .field("name", &self.name)
       .field("children", &self.children)
+      .field("functions", &self.funs)
       .finish()
   }
 }
@@ -51,12 +52,22 @@ impl Default for ScopeType {
   }
 }
 
-#[derive(Debug)]
 pub struct Function {
+  pub name: Option<String>,
   pub pos_params: Vec<Param>,
-  pub key_param: HashMap<String, Param>,
+  pub key_params: HashMap<String, Param>,
   pub returns: Primitive,
   pub scope: Rc<RefCell<Scope>>,
+}
+
+impl Debug for Function {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    f.debug_struct("Function")
+      .field("name", &self.name)
+      .field("returns", &self.returns)
+      .field("key_params", &self.key_params)
+      .finish()
+  }
 }
 
 #[derive(Debug)]

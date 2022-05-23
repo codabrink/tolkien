@@ -1,3 +1,5 @@
+use regex::internal::Char;
+
 use crate::*;
 
 pub fn tokenize(path: impl AsRef<Path>) -> Result<()> {
@@ -24,6 +26,12 @@ pub fn tokenize(path: impl AsRef<Path>) -> Result<()> {
       "class" | "module" => {
         app.add_namespace(&mut stream)?;
       }
+      "def" => {
+        app.add_function(&mut stream)?;
+      }
+      "end" => {
+        app.close_scope(&mut stream);
+      }
       _ => {}
     }
   }
@@ -40,6 +48,12 @@ struct TokenTree {
 }
 
 impl TokenTree {
+  fn close_scope(&mut self, stream: &mut Peekable<Chars>) -> Result<()> {
+    let cursor = self.cursor.borrow();
+    if let Some(parent) = &cursor.parent {}
+    Ok(())
+  }
+
   fn descend_scope(&mut self, child_name: impl AsRef<str>) -> Result<()> {
     let child_name = child_name.as_ref();
     println!("Descending into {}...", child_name);
@@ -67,6 +81,50 @@ impl TokenTree {
       }
     };
     Ok(child)
+  }
+
+  fn add_function(&mut self, stream: &mut Peekable<Chars>) -> Result<()> {
+    let name = match stream.next_alphanumeric_word() {
+      Some(name) => name,
+      _ => bail!("Expected function name definition."),
+    };
+
+    let mut function = Function {
+      name: Some(name.clone()),
+      scope: self.cursor.clone(),
+      returns: Primitive::Unknown,
+      key_params: HashMap::new(),
+      pos_params: vec![],
+    };
+
+    let mut cursor = self.cursor.borrow_mut();
+
+    // if the left paren was found
+    let mut key_paramed = false;
+    if let (_, Some(_)) = stream.read_until_blank_or(&['(']) {
+      match stream.read_until_blank_or(&[':', ',', ')']) {
+        (name, Some(':')) => {
+          key_paramed = true;
+          function.key_params.insert(
+            name,
+            Param {
+              t: Primitive::Unknown,
+              default: None,
+            },
+          );
+        }
+        (name, Some(',')) => {
+          if key_paramed {
+            bail!("Error, positional params come first");
+          }
+        }
+        _ => {}
+      }
+    }
+
+    cursor.funs.insert(name, Rc::new(RefCell::new(function)));
+
+    Ok(())
   }
 
   fn add_namespace(&mut self, stream: &mut Peekable<Chars>) -> Result<()> {
