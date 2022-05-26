@@ -3,8 +3,7 @@ use regex::internal::Char;
 use crate::*;
 
 pub fn tokenize(path: impl AsRef<Path>) -> Result<()> {
-  let file = std::fs::read_to_string(path.as_ref())?;
-  let mut stream = file.chars().peekable();
+  let mut reader = FileReader::new(path);
 
   let root = Rc::new(RefCell::new(Scope::default()));
 
@@ -12,43 +11,36 @@ pub fn tokenize(path: impl AsRef<Path>) -> Result<()> {
     cursor: root.clone(),
     root,
   };
-
-  while let Some(word) = stream.next_word() {
-    if let Some(first_char) = word.chars().nth(0) {
-      // comments
-      if first_char == '#' {
-        stream.to_next_line();
-        continue;
+  while let Some(expression) = reader.next_expression() {
+    match expression {
+      Expression::ClassOpen(name) => {
+        app.add_namespace(name);
       }
-    }
-
-    match word.as_str() {
-      "class" | "module" => {
-        app.add_namespace(&mut stream)?;
+      Expression::FnDef(name, params) => {
+        app.add_function(name);
       }
-      "def" => {
-        app.add_function(&mut stream)?;
-      }
-      "end" => {
-        app.close_scope(&mut stream);
+      Expression::Close => {
+        app.close_scope();
       }
       _ => {}
     }
   }
 
-  println!("{:#?}", app);
+  println!("{:#?}", app.root);
 
   Ok(())
 }
 
 #[derive(Debug)]
-struct TokenTree {
+pub struct TokenTree {
   root: Cursor,
   cursor: Cursor,
 }
 
 impl TokenTree {
-  fn close_scope(&mut self, stream: &mut Peekable<Chars>) -> Result<()> {
+  pub const PARAM_DELIM: &'static [char] = &[':', ',', ')'];
+
+  fn close_scope(&mut self) -> Result<()> {
     let cursor = self.cursor.borrow();
     if let Some(parent) = &cursor.parent {}
     Ok(())
@@ -83,12 +75,7 @@ impl TokenTree {
     Ok(child)
   }
 
-  fn add_function(&mut self, stream: &mut Peekable<Chars>) -> Result<()> {
-    let name = match stream.next_alphanumeric_word() {
-      Some(name) => name,
-      _ => bail!("Expected function name definition."),
-    };
-
+  fn add_function(&mut self, name: String) -> Result<()> {
     let mut function = Function {
       name: Some(name.clone()),
       scope: self.cursor.clone(),
@@ -98,44 +85,12 @@ impl TokenTree {
     };
 
     let mut cursor = self.cursor.borrow_mut();
-
-    // if the left paren was found
-    let mut key_paramed = false;
-    if let (_, Some(_)) = stream.read_until_blank_or(&['(']) {
-      match stream.read_until_blank_or(&[':', ',', ')']) {
-        (name, Some(':')) => {
-          key_paramed = true;
-          function.key_params.insert(
-            name,
-            Param {
-              t: Primitive::Unknown,
-              default: None,
-            },
-          );
-        }
-        (name, Some(',')) => {
-          if key_paramed {
-            bail!("Error, positional params come first");
-          }
-        }
-        _ => {}
-      }
-    }
-
     cursor.funs.insert(name, Rc::new(RefCell::new(function)));
 
     Ok(())
   }
 
-  fn add_namespace(&mut self, stream: &mut Peekable<Chars>) -> Result<()> {
-    let name = match stream.next_word() {
-      Some(name) => name,
-      _ => bail!("Expected name definition"),
-    };
-    if !name.is_capitalized() {
-      bail!("Expected constant definition");
-    }
-
+  fn add_namespace(&mut self, name: String) -> Result<()> {
     // drive down into the tree
     let mut name_split: Vec<&str> = name.split("::").collect();
     let last = name_split.pop();
