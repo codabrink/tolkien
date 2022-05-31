@@ -31,7 +31,7 @@ pub enum Expression {
   // (name)
   ClassOpen(String),
   // (name, param string)
-  FnDef(String, Option<String>),
+  FnDef(Function),
   // (end) - pop off of the stack
   Close,
   Assignment(String, Type),
@@ -44,8 +44,9 @@ pub trait TolkienChars {
   fn next_line(&mut self) -> Option<String>;
   fn next_expression(&mut self) -> Option<Expression>;
   fn next_constant_name(&mut self) -> String;
-  fn next_function_name(&mut self) -> String;
-  fn next_function_parameters(&mut self) -> Option<String>;
+  fn read_function(&mut self) -> Result<Function>;
+  fn read_function_name(&mut self) -> Result<String>;
+  fn read_function_parameters(&mut self) -> Result<(Vec<Param>, HashMap<String, Param>)>;
   fn next_word(&mut self) -> Option<String>;
   fn next_alphanumeric_word(&mut self) -> Option<String>;
   fn next_word_expected(&mut self) -> String;
@@ -95,22 +96,47 @@ impl TolkienChars for FileReader {
     name
   }
 
-  fn next_function_name(&mut self) -> String {
+  fn read_function_name(&mut self) -> Result<String> {
     let (name, delim) = self.read_until_delim(&['(']);
+    if delim == Some('(') {
+      self.next();
+    }
 
     if name.is_blank() {
-      panic!("Expected function name.");
+      bail!("Expected function name.");
     }
-    name
+
+    Ok(name)
   }
 
-  fn next_function_parameters(&mut self) -> Option<String> {
-    let params = self.read_until_delim_inclusive(&[')']);
-    if params.is_blank() {
-      None
-    } else {
-      Some(params)
+  fn read_function_parameters(&mut self) -> Result<(Vec<Param>, HashMap<String, Param>)> {
+    let mut pos_params = Vec::new();
+    let mut key_params = HashMap::new();
+    loop {
+      match self.read_until_delim(&[':', ',', ')']) {
+        (param, Some(',')) => {}
+        (param, Some(':')) => {}
+        (param, Some(')')) => {
+          break;
+        }
+        _ => {}
+      }
     }
+
+    Ok((pos_params, key_params))
+  }
+
+  fn read_function(&mut self) -> Result<Function> {
+    let fn_name = self.read_function_name()?;
+    let (pos_params, key_params) = self.read_function_parameters()?;
+    self.stack.push(Nesting::Function);
+    Ok(Function {
+      name: Some(fn_name),
+      pos_params,
+      key_params,
+      returns: Primitive::Unknown,
+      
+    })
   }
 
   fn next_expression(&mut self) -> Option<Expression> {
@@ -120,22 +146,19 @@ impl TolkienChars for FileReader {
     match word.as_str() {
       "class" | "module" => {
         self.stack.push(Nesting::Class);
-        return Some(Expression::ClassOpen(self.next_constant_name()));
+        Some(Expression::ClassOpen(self.next_constant_name()))
       }
-      "def" => {
-        self.stack.push(Nesting::Function);
-        return Some(Expression::FnDef(
-          self.next_function_name(),
-          self.next_function_parameters(),
-        ));
-      }
+      "def" => match self.read_function() {
+        Ok(f) => Some(Expression::FnDef(f)),
+        Err(e) => panic!("{:?}", e),
+      },
       "end" => {
         if let None = self.stack.pop() {
           panic!("Unexpected keyword \"end\".")
         }
-        return Some(Expression::Close);
+        Some(Expression::Close)
       }
-      _ => return Some(Expression::Unknown),
+      _ => Some(Expression::Unknown),
     }
   }
 
@@ -150,6 +173,7 @@ impl TolkienChars for FileReader {
   }
 
   // (result, delimiting char)
+  #[inline]
   fn read_until(&mut self, delimiters: &[char]) -> (String, Option<char>) {
     let mut result = String::new();
     self.skip_blank();
@@ -162,6 +186,7 @@ impl TolkienChars for FileReader {
     (result, None)
   }
 
+  #[inline]
   fn read_until_delim(&mut self, delimiters: &[char]) -> (String, Option<char>) {
     let mut result = String::new();
     self.skip_blank();
@@ -179,6 +204,7 @@ impl TolkienChars for FileReader {
     (result, None)
   }
 
+  #[inline]
   fn read_until_delim_inclusive(&mut self, delimiters: &[char]) -> String {
     let (mut result, delim) = self.read_until_delim(delimiters);
     if let Some(delim) = delim {
